@@ -32,18 +32,14 @@ def _request_access() -> bool:
 
 def _ensure_access():
     """Ensure we have reminder access, request if needed."""
-    status = EventKit.EKEventStore.authorizationStatusForEntityType_(
-        EventKit.EKEntityTypeReminder
-    )
+    status = EventKit.EKEventStore.authorizationStatusForEntityType_(EventKit.EKEntityTypeReminder)
     if status == EventKit.EKAuthorizationStatusFullAccess:
         return
     if status == EventKit.EKAuthorizationStatusNotDetermined:
         if not _request_access():
             raise PermissionError("Reminders access denied by user.")
     else:
-        raise PermissionError(
-            "Reminders access not granted. Open System Settings > Privacy & Security > Reminders."
-        )
+        raise PermissionError("Reminders access not granted. Open System Settings > Privacy & Security > Reminders.")
 
 
 PRIORITY_MAP = {0: "none", 1: "high", 5: "medium", 9: "low"}
@@ -131,11 +127,13 @@ def list_reminder_lists() -> list[dict]:
     for cal in _store.calendarsForEntityType_(EventKit.EKEntityTypeReminder):
         reminders = _fetch_reminders(calendars=[cal])
         incomplete = sum(1 for r in reminders if not r.isCompleted())
-        results.append({
-            "name": cal.title(),
-            "count": len(reminders),
-            "incomplete": incomplete,
-        })
+        results.append(
+            {
+                "name": cal.title(),
+                "count": len(reminders),
+                "incomplete": incomplete,
+            }
+        )
     return results
 
 
