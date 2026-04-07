@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ──────────────────────────────────────────────
+  # PR to main: ensure pyproject.toml version was bumped
+  # ──────────────────────────────────────────────
+  version-check:
+    if: github.event_name == 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version bump
+        run: |
+          TARGET_VERSION=$(git show origin/main:pyproject.toml | grep '^version' | sed 's/version = "\(.*\)"/\1/')
+          SOURCE_VERSION=$(grep '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Target (main) version: ${TARGET_VERSION}"
+          echo "Source (PR branch) version: ${SOURCE_VERSION}"
+          HIGHEST=$(printf '%s\n' "$SOURCE_VERSION" "$TARGET_VERSION" | sort -V | tail -n1)
+          if [ "$HIGHEST" != "$SOURCE_VERSION" ] || [ "$SOURCE_VERSION" = "$TARGET_VERSION" ]; then
+            echo "ERROR: Version ${SOURCE_VERSION} must be greater than ${TARGET_VERSION}. Bump the version in pyproject.toml."
+            exit 1
+          fi
+          echo "OK: ${SOURCE_VERSION} > ${TARGET_VERSION}"
+
+  # ──────────────────────────────────────────────
+  # Lint and build on every push and PR
+  # ──────────────────────────────────────────────
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          retention-days: 7
+
+  # ──────────────────────────────────────────────
+  # Create GitHub Release on merge to main
+  # ──────────────────────────────────────────────
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=v$(grep '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: "*.tar.gz\n*.whl"
