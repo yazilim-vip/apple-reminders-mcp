@@ -138,6 +138,33 @@ def list_reminder_lists() -> list[dict]:
 
 
 @mcp.tool()
+def create_reminder_list(name: str) -> dict:
+    """Create a new reminder list."""
+    _ensure_access()
+    source = _store.defaultCalendarForNewReminders().source()
+    new_cal = EventKit.EKCalendar.calendarForEntityType_eventStore_(EventKit.EKEntityTypeReminder, _store)
+    new_cal.setTitle_(name)
+    new_cal.setSource_(source)
+    ok, error = _store.saveCalendar_commit_error_(new_cal, True, None)
+    if not ok:
+        return {"error": str(error)}
+    return {"created": True, "name": name}
+
+
+@mcp.tool()
+def delete_reminder_list(name: str) -> dict:
+    """Delete a reminder list by name. All reminders in the list will be deleted."""
+    _ensure_access()
+    cal = _find_calendar(name)
+    if not cal:
+        return {"error": f"List not found: {name}"}
+    ok, error = _store.removeCalendar_commit_error_(cal, True, None)
+    if not ok:
+        return {"error": str(error)}
+    return {"deleted": True, "name": name}
+
+
+@mcp.tool()
 def list_reminders(
     list_name: Optional[str] = None,
     include_completed: bool = False,
@@ -360,6 +387,46 @@ def edit_reminder(
 
     result = _serialize_reminder(r)
     result["updated"] = True
+    return result
+
+
+@mcp.tool()
+def move_reminder(query: str, to_list: str, from_list: Optional[str] = None) -> dict:
+    """Move a reminder to a different list."""
+    _ensure_access()
+    target_cal = _find_calendar(to_list)
+    if not target_cal:
+        return {"error": f"Target list not found: {to_list}"}
+
+    calendars = None
+    if from_list:
+        cal = _find_calendar(from_list)
+        if not cal:
+            return {"error": f"Source list not found: {from_list}"}
+        calendars = [cal]
+
+    reminders = _fetch_reminders(calendars=calendars)
+    q = query.lower()
+    matches = [r for r in reminders if q in (r.title() or "").lower()]
+
+    if not matches:
+        return {"error": f"No reminders found matching: {query}"}
+    if len(matches) > 1:
+        return {
+            "error": "Multiple reminders match. Be more specific.",
+            "matches": [{"name": r.title(), "list": r.calendar().title()} for r in matches],
+        }
+
+    r = matches[0]
+    old_list = r.calendar().title()
+    r.setCalendar_(target_cal)
+    ok, error = _store.saveReminder_commit_error_(r, True, None)
+    if not ok:
+        return {"error": str(error)}
+
+    result = _serialize_reminder(r)
+    result["moved"] = True
+    result["from_list"] = old_list
     return result
 
 
