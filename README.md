@@ -55,11 +55,14 @@ uv run apple-reminders-mcp
 | Tool | Description |
 |------|-------------|
 | `list_reminder_lists` | List all reminder lists with counts |
+| `create_reminder_list` | Create a new reminder list |
+| `delete_reminder_list` | Delete a reminder list and all its reminders |
 | `list_reminders` | List reminders, optionally filter by list |
 | `search_reminders` | Search reminders by name/notes |
 | `add_reminder` | Create a new reminder with optional due date, notes, priority |
 | `complete_reminder` | Mark a reminder as complete |
 | `edit_reminder` | Edit reminder fields (name, due, notes, priority) |
+| `move_reminder` | Move a reminder to a different list |
 | `delete_reminder` | Delete a reminder by name search |
 
 ## Tech Stack
